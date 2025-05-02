@@ -7,6 +7,8 @@
 #include "FreeRTOSConfig.h"
 #include "task.h"
 #include <stdio.h>
+#include "hardware/pio.h"
+#include "ws2812.pio.h"
 
 #define I2C_PORT i2c1
 #define I2C_SDA 14
