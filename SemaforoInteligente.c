@@ -9,38 +9,66 @@
 #include <stdio.h>
 #include "hardware/pio.h"
 #include "ws2812.pio.h"
+#include "hardware/pwm.h"
 
 #define I2C_PORT i2c1
 #define I2C_SDA 14
 #define I2C_SCL 15
 #define endereco 0x3C
 
-#define led1 11
-#define led2 12
+// Matriz de LEDs
+#define IS_RGBW false
+#define NUM_PIXELS 25
+#define WS2812_PIN 7
+uint8_t led_r = 5; // Intensidade do vermelho
+uint8_t led_g = 5; // Intensidade do verde
+uint8_t led_b = 5; // Intensidade do azul
 
-void vBlinkLed1Task()
+#define buzzer 10    // Pino do buzzer A
+#define led_RED 13   // Red=13, Blue=12, Green=11
+#define led_GREEN 11 // Red=13, Blue=12, Green=11
+#define botao_pinA 5 // Botão A = 5, Botão B = 6 , BotãoJoy = 22
+
+// Variaveis globais
+bool Noturno = false;
+
+void vSemaforoTask()
 {
-    gpio_init(led1);
-    gpio_set_dir(led1, GPIO_OUT);
+    gpio_init(led_RED);
+    gpio_set_dir(led_RED, GPIO_OUT);
+    gpio_init(led_GREEN);
+    gpio_set_dir(led_GREEN, GPIO_OUT);
+    gpio_put(led_RED, false);
+    gpio_put(led_GREEN, false);
+
+    gpio_set_function(buzzer, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(buzzer);
+    pwm_set_wrap(slice_num, 4096);
+    // Define o clock divider como 440
+    pwm_set_clkdiv(slice_num, 440.0f);
+    pwm_set_enabled(slice_num, true);
+
     while (true)
     {
-        gpio_put(led1, true);
-        vTaskDelay(pdMS_TO_TICKS(250));
-        gpio_put(led1, false);
-        vTaskDelay(pdMS_TO_TICKS(1223));
-    }
-}
-
-void vBlinkLed2Task()
-{
-    gpio_init(led2);
-    gpio_set_dir(led2, GPIO_OUT);
-    while (true)
-    {
-        gpio_put(led2, true);
+        gpio_put(led_GREEN, true);
+        pwm_set_gpio_level(buzzer, 2048);
+        vTaskDelay(pdMS_TO_TICKS(150));
+        pwm_set_gpio_level(buzzer, 0);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        gpio_put(led_RED, true);
+        for(int i = 0; i < 4; i++){
+            pwm_set_gpio_level(buzzer, 2048);
+            vTaskDelay(pdMS_TO_TICKS(150));
+            pwm_set_gpio_level(buzzer, 0);
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        gpio_put(led_GREEN, false);
+        pwm_set_gpio_level(buzzer, 2048);
         vTaskDelay(pdMS_TO_TICKS(500));
-        gpio_put(led2, false);
-        vTaskDelay(pdMS_TO_TICKS(2224));
+        pwm_set_gpio_level(buzzer, 0);
+        vTaskDelay(pdMS_TO_TICKS(1500));
+        gpio_put(led_RED, false);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -101,10 +129,8 @@ int main()
 
     stdio_init_all();
 
-    xTaskCreate(vBlinkLed1Task, "Blink Task Led1", configMINIMAL_STACK_SIZE,
+    xTaskCreate(vSemaforoTask, "Semaforo Task", configMINIMAL_STACK_SIZE,
          NULL, tskIDLE_PRIORITY, NULL);
-    xTaskCreate(vBlinkLed2Task, "Blink Task Led2", configMINIMAL_STACK_SIZE, 
-        NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vDisplay3Task, "Cont Task Disp3", configMINIMAL_STACK_SIZE, 
         NULL, tskIDLE_PRIORITY, NULL);
     vTaskStartScheduler();

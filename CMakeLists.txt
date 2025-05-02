@@ -45,6 +45,7 @@ target_link_libraries(${PROJECT_NAME}
         FreeRTOS-Kernel 
         FreeRTOS-Kernel-Heap4
         hardware_pio
+        hardware_pwm
         )
 
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
