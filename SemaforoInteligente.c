@@ -20,9 +20,6 @@
 #define IS_RGBW false
 #define NUM_PIXELS 25
 #define WS2812_PIN 7
-uint8_t led_r = 5; // Intensidade do vermelho
-uint8_t led_g = 5; // Intensidade do verde
-uint8_t led_b = 5; // Intensidade do azul
 
 #define buzzer 10    // Pino do buzzer A
 #define led_RED 13   // Red=13, Blue=12, Green=11
@@ -31,9 +28,84 @@ uint8_t led_b = 5; // Intensidade do azul
 
 // Variaveis globais
 bool Noturno = false;
+const char* cores[] = { // Variavel para código de cores (5 caracteres cada)
+    "Verde",   // 0
+    "Amare",  // 1
+    "Verme",// 2
+    "Notur"
+};
+uint8_t estado = 0;
+bool led_buffer[4][NUM_PIXELS] = {
+    {
+        0, 0, 0, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0  
+    },
+    {
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0   
+    },
+    {
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 0, 0, 0  
+    },
+    {
+        0, 0, 0, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 1, 0, 0, 
+        0, 0, 0, 0, 0  
+    }
+};
 
+// Funcoes para serem chamadas
+// Funções para matriz LEDS
+static inline void put_pixel(uint32_t pixel_grb)
+{
+    pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
+}
+
+static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b)
+{
+    return ((uint32_t)(r) << 8) | ((uint32_t)(g) << 16) | (uint32_t)(b);
+}
+
+void set_one_led(uint8_t r, uint8_t g, uint8_t b)
+{
+    // Define a cor com base nos parâmetros fornecidos
+    uint32_t color = urgb_u32(r, g, b);
+
+    // Define todos os LEDs com a cor especificada
+    for (int i = 0; i < NUM_PIXELS; i++)
+    {
+        if (led_buffer[estado /*variavel do arrey do buffer*/][i])
+        {
+            put_pixel(color); // Liga o LED com um no buffer
+        }
+        else
+        {
+            put_pixel(0); // Desliga os LEDs com zero no buffer
+        }
+    }
+}
+// Funcoes de programa do FreeRTOS
 void vSemaforoTask()
 {
+    // configuracao do PIO
+    PIO pio = pio0;
+    int sm = 0;
+    uint offset = pio_add_program(pio, &ws2812_program);
+
+    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
+
     gpio_init(led_RED);
     gpio_set_dir(led_RED, GPIO_OUT);
     gpio_init(led_GREEN);
@@ -52,7 +124,10 @@ void vSemaforoTask()
     {
         if (!Noturno)
         {
+            estado = 0;
+            set_one_led(0, 5, 0);
             gpio_put(led_GREEN, true);
+            gpio_put(led_RED, false);
             pwm_set_gpio_level(buzzer, 2048);
             vTaskDelay(pdMS_TO_TICKS(150));
             pwm_set_gpio_level(buzzer, 0);
@@ -60,7 +135,10 @@ void vSemaforoTask()
         }
         if (!Noturno)
         {
+            estado = 1;
+            set_one_led(5, 5, 0);
             gpio_put(led_RED, true);
+            gpio_put(led_GREEN, true);
             for (int i = 0; i < 4; i++)
             {
                 pwm_set_gpio_level(buzzer, 2048);
@@ -72,7 +150,10 @@ void vSemaforoTask()
         }
         if (!Noturno)
         {
+            estado = 2;
+            set_one_led(5, 0, 0);
             gpio_put(led_GREEN, false);
+            gpio_put(led_RED, true);
             pwm_set_gpio_level(buzzer, 2048);
             vTaskDelay(pdMS_TO_TICKS(500));
             pwm_set_gpio_level(buzzer, 0);
@@ -85,14 +166,17 @@ void vSemaforoTask()
         }
         if (Noturno)
         {
+            estado = 3;
+            set_one_led(5, 5, 0);
             pwm_set_gpio_level(buzzer, 2048);
             gpio_put(led_RED, true);
             gpio_put(led_GREEN, true);
             vTaskDelay(pdMS_TO_TICKS(500));
+            set_one_led(0, 0, 0);
             pwm_set_gpio_level(buzzer, 0);
             gpio_put(led_RED, false);
             gpio_put(led_GREEN, false);
-            vTaskDelay(pdMS_TO_TICKS(500));
+            vTaskDelay(pdMS_TO_TICKS(2000));
         }
     }
 }
@@ -133,22 +217,18 @@ void vDisplay3Task()
     ssd1306_fill(&ssd, false);
     ssd1306_send_data(&ssd);
 
-    char str_y[5]; // Buffer para armazenar a string
-    int contador = 0;
     bool cor = true;
     while (true)
     {
-        sprintf(str_y, "%d", contador);                      // Converte em string
-        contador++;                                          // Incrementa o contador
         ssd1306_fill(&ssd, !cor);                            // Limpa o display
         ssd1306_rect(&ssd, 3, 3, 122, 60, cor, !cor);        // Desenha um retângulo
         ssd1306_line(&ssd, 3, 25, 123, 25, cor);             // Desenha uma linha
         ssd1306_line(&ssd, 3, 37, 123, 37, cor);             // Desenha uma linha
         ssd1306_draw_string(&ssd, "CEPEDI   TIC37", 8, 6);   // Desenha uma string
         ssd1306_draw_string(&ssd, "EMBARCATECH", 20, 16);    // Desenha uma string
-        ssd1306_draw_string(&ssd, "  FreeRTOS", 10, 28);     // Desenha uma string
-        ssd1306_draw_string(&ssd, "Contador  LEDs", 10, 41); // Desenha uma string
-        ssd1306_draw_string(&ssd, str_y, 40, 52);            // Desenha uma string
+        ssd1306_draw_string(&ssd, "FreeRTOS - Wil", 10, 28);     // Desenha uma string
+        ssd1306_draw_string(&ssd, "   SEMAFORO", 10, 41); // Desenha uma string
+        ssd1306_draw_string(&ssd, cores[estado], 44, 52);            // Desenha uma string
         ssd1306_send_data(&ssd);                             // Atualiza o display
         sleep_ms(735);
     }
