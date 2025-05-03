@@ -50,25 +50,69 @@ void vSemaforoTask()
 
     while (true)
     {
-        gpio_put(led_GREEN, true);
-        pwm_set_gpio_level(buzzer, 2048);
-        vTaskDelay(pdMS_TO_TICKS(150));
-        pwm_set_gpio_level(buzzer, 0);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        gpio_put(led_RED, true);
-        for(int i = 0; i < 4; i++){
+        if (!Noturno)
+        {
+            gpio_put(led_GREEN, true);
             pwm_set_gpio_level(buzzer, 2048);
             vTaskDelay(pdMS_TO_TICKS(150));
             pwm_set_gpio_level(buzzer, 0);
-            vTaskDelay(pdMS_TO_TICKS(200));
+            vTaskDelay(pdMS_TO_TICKS(1500));
         }
-        gpio_put(led_GREEN, false);
-        pwm_set_gpio_level(buzzer, 2048);
-        vTaskDelay(pdMS_TO_TICKS(500));
-        pwm_set_gpio_level(buzzer, 0);
-        vTaskDelay(pdMS_TO_TICKS(1500));
-        gpio_put(led_RED, false);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if (!Noturno)
+        {
+            gpio_put(led_RED, true);
+            for (int i = 0; i < 4; i++)
+            {
+                pwm_set_gpio_level(buzzer, 2048);
+                vTaskDelay(pdMS_TO_TICKS(200));
+                pwm_set_gpio_level(buzzer, 0);
+                vTaskDelay(pdMS_TO_TICKS(300));
+            }
+            vTaskDelay(pdMS_TO_TICKS(1250));
+        }
+        if (!Noturno)
+        {
+            gpio_put(led_GREEN, false);
+            pwm_set_gpio_level(buzzer, 2048);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            pwm_set_gpio_level(buzzer, 0);
+            vTaskDelay(pdMS_TO_TICKS(1500));
+            gpio_put(led_RED, false);
+        }
+        if (!Noturno)
+        {
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        if (Noturno)
+        {
+            pwm_set_gpio_level(buzzer, 2048);
+            gpio_put(led_RED, true);
+            gpio_put(led_GREEN, true);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            pwm_set_gpio_level(buzzer, 0);
+            gpio_put(led_RED, false);
+            gpio_put(led_GREEN, false);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+}
+void vModoTask()
+{
+    gpio_init(botao_pinA);
+    gpio_set_dir(botao_pinA, GPIO_IN);
+    gpio_pull_up(botao_pinA);
+    while (true)
+    {
+        if (gpio_get(botao_pinA))
+        {
+            Noturno = false;
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        else
+        {
+            Noturno = true;
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
     }
 }
 
@@ -94,18 +138,18 @@ void vDisplay3Task()
     bool cor = true;
     while (true)
     {
-        sprintf(str_y, "%d", contador); // Converte em string
-        contador++;                     // Incrementa o contador
-        ssd1306_fill(&ssd, !cor);                          // Limpa o display
-        ssd1306_rect(&ssd, 3, 3, 122, 60, cor, !cor);      // Desenha um retângulo
-        ssd1306_line(&ssd, 3, 25, 123, 25, cor);           // Desenha uma linha
-        ssd1306_line(&ssd, 3, 37, 123, 37, cor);           // Desenha uma linha
-        ssd1306_draw_string(&ssd, "CEPEDI   TIC37", 8, 6); // Desenha uma string
-        ssd1306_draw_string(&ssd, "EMBARCATECH", 20, 16);  // Desenha uma string
-        ssd1306_draw_string(&ssd, "  FreeRTOS", 10, 28); // Desenha uma string
-        ssd1306_draw_string(&ssd, "Contador  LEDs", 10, 41);    // Desenha uma string
-        ssd1306_draw_string(&ssd, str_y, 40, 52);          // Desenha uma string
-        ssd1306_send_data(&ssd);                           // Atualiza o display
+        sprintf(str_y, "%d", contador);                      // Converte em string
+        contador++;                                          // Incrementa o contador
+        ssd1306_fill(&ssd, !cor);                            // Limpa o display
+        ssd1306_rect(&ssd, 3, 3, 122, 60, cor, !cor);        // Desenha um retângulo
+        ssd1306_line(&ssd, 3, 25, 123, 25, cor);             // Desenha uma linha
+        ssd1306_line(&ssd, 3, 37, 123, 37, cor);             // Desenha uma linha
+        ssd1306_draw_string(&ssd, "CEPEDI   TIC37", 8, 6);   // Desenha uma string
+        ssd1306_draw_string(&ssd, "EMBARCATECH", 20, 16);    // Desenha uma string
+        ssd1306_draw_string(&ssd, "  FreeRTOS", 10, 28);     // Desenha uma string
+        ssd1306_draw_string(&ssd, "Contador  LEDs", 10, 41); // Desenha uma string
+        ssd1306_draw_string(&ssd, str_y, 40, 52);            // Desenha uma string
+        ssd1306_send_data(&ssd);                             // Atualiza o display
         sleep_ms(735);
     }
 }
@@ -130,9 +174,11 @@ int main()
     stdio_init_all();
 
     xTaskCreate(vSemaforoTask, "Semaforo Task", configMINIMAL_STACK_SIZE,
-         NULL, tskIDLE_PRIORITY, NULL);
-    xTaskCreate(vDisplay3Task, "Cont Task Disp3", configMINIMAL_STACK_SIZE, 
-        NULL, tskIDLE_PRIORITY, NULL);
+                NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vDisplay3Task, "Cont Task Disp3", configMINIMAL_STACK_SIZE,
+                NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vModoTask, "Modo norturno Task", configMINIMAL_STACK_SIZE,
+                NULL, tskIDLE_PRIORITY, NULL);
     vTaskStartScheduler();
     panic_unsupported();
 }
