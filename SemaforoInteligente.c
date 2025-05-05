@@ -28,19 +28,19 @@
 
 // Variaveis globais
 bool Noturno = false;
-const char* cores[] = { // Variavel para código de cores (5 caracteres cada)
-    "Verde",   // 0
-    "Amare",  // 1
-    "Verme",// 2
+const char* cores[] = {
+    "Verde",
+    "Amare",
+    "Verme",
     "Notur"
 };
 uint8_t estado = 0;
 bool led_buffer[4][NUM_PIXELS] = {
     {
         0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
         0, 0, 1, 0, 0, 
-        0, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 
         0, 0, 0, 0, 0  
     },
     {
@@ -52,9 +52,9 @@ bool led_buffer[4][NUM_PIXELS] = {
     },
     {
         0, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 
         0, 0, 1, 0, 0, 
+        0, 0, 0, 0, 0, 
+        0, 0, 0, 0, 0, 
         0, 0, 0, 0, 0  
     },
     {
@@ -97,6 +97,7 @@ void set_one_led(uint8_t r, uint8_t g, uint8_t b)
     }
 }
 // Funcoes de programa do FreeRTOS
+//funcao para acender semaforo
 void vSemaforoTask()
 {
     // configuracao do PIO
@@ -105,23 +106,24 @@ void vSemaforoTask()
     uint offset = pio_add_program(pio, &ws2812_program);
 
     ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
-
+    //iniciacao pinos
     gpio_init(led_RED);
     gpio_set_dir(led_RED, GPIO_OUT);
     gpio_init(led_GREEN);
     gpio_set_dir(led_GREEN, GPIO_OUT);
     gpio_put(led_RED, false);
     gpio_put(led_GREEN, false);
-
+    //iniciacao buzzer
     gpio_set_function(buzzer, GPIO_FUNC_PWM);
     uint slice_num = pwm_gpio_to_slice_num(buzzer);
     pwm_set_wrap(slice_num, 4096);
-    // Define o clock divider como 440
+    // Define o clock divider como 440 (nota lá para o buzzer)
     pwm_set_clkdiv(slice_num, 440.0f);
     pwm_set_enabled(slice_num, true);
 
     while (true)
     {
+        //sinal verde
         if (!Noturno)
         {
             estado = 0;
@@ -133,6 +135,7 @@ void vSemaforoTask()
             pwm_set_gpio_level(buzzer, 0);
             vTaskDelay(pdMS_TO_TICKS(1500));
         }
+        //sinal amarelo
         if (!Noturno)
         {
             estado = 1;
@@ -148,6 +151,7 @@ void vSemaforoTask()
             }
             vTaskDelay(pdMS_TO_TICKS(1250));
         }
+        //sinal vermelho
         if (!Noturno)
         {
             estado = 2;
@@ -160,10 +164,7 @@ void vSemaforoTask()
             vTaskDelay(pdMS_TO_TICKS(1500));
             gpio_put(led_RED, false);
         }
-        if (!Noturno)
-        {
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        //modo noturno
         if (Noturno)
         {
             estado = 3;
@@ -180,6 +181,7 @@ void vSemaforoTask()
         }
     }
 }
+//funcao para verificar botao A
 void vModoTask()
 {
     gpio_init(botao_pinA);
@@ -199,7 +201,7 @@ void vModoTask()
         }
     }
 }
-
+//funcao para modificar o display
 void vDisplay3Task()
 {
     // I2C Initialisation. Using it at 400Khz.
@@ -252,13 +254,13 @@ int main()
     // Fim do trecho para modo BOOTSEL com botão B
 
     stdio_init_all();
-
+    //chamadas de funcoes
     xTaskCreate(vSemaforoTask, "Semaforo Task", configMINIMAL_STACK_SIZE,
                 NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vDisplay3Task, "Cont Task Disp3", configMINIMAL_STACK_SIZE,
                 NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vModoTask, "Modo norturno Task", configMINIMAL_STACK_SIZE,
                 NULL, tskIDLE_PRIORITY, NULL);
-    vTaskStartScheduler();
-    panic_unsupported();
+    vTaskStartScheduler(); // comeca as chamadas das funcoes
+    panic_unsupported(); // caso aconteca algum desastre com o programa
 }
